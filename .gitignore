@@ -1,0 +1,8 @@
+# Editor directories and files
+*.code-workspace
+.idea/
+.vscode/
+
+# environment variables and logs
+*.env
+*.log
