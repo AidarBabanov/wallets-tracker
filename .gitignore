@@ -3,6 +3,7 @@
 .idea/
 .vscode/
 
-# environment variables and logs
 *.env
 *.log
+*.csv
+*.db
