@@ -1,6 +1,7 @@
 package csv
 
 import (
+	"encoding/csv"
 	"fmt"
 	"github.com/AidarBabanov/wallets-tracker/internal/addrdb"
 	"github.com/beego/beego/v2/core/logs"
@@ -12,19 +13,38 @@ import (
 type AddressDatabase struct {
 	addresses []addrdb.Address
 	index     int
-	mu        sync.RWMutex
+	mu        *sync.RWMutex
+	filePath  string
 }
 
-func New() *AddressDatabase {
+func New(filePath string) *AddressDatabase {
 	adb := new(AddressDatabase)
-	adb.mu = sync.RWMutex{}
+	adb.mu = new(sync.RWMutex)
+	adb.filePath = filePath
 	return adb
 }
 
-func (adb *AddressDatabase) ReadCSV(path string) error {
+func (adb *AddressDatabase) Add(address addrdb.Address) error {
 	adb.mu.Lock()
-	adb.mu.Unlock()
-	addressesFile, err := os.OpenFile(path, os.O_RDONLY|os.O_CREATE, os.ModePerm)
+	defer adb.mu.Unlock()
+	adb.addresses = append(adb.addresses, address)
+	addressesFile, err := os.OpenFile(adb.filePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, os.ModePerm)
+	if err != nil {
+		return err
+	}
+	defer addressesFile.Close()
+	csvWriter := gocsv.NewSafeCSVWriter(csv.NewWriter(addressesFile))
+	err = gocsv.MarshalCSVWithoutHeaders([]addrdb.Address{address}, csvWriter)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (adb *AddressDatabase) ReadCSV() error {
+	adb.mu.Lock()
+	defer adb.mu.Unlock()
+	addressesFile, err := os.OpenFile(adb.filePath, os.O_RDONLY|os.O_CREATE, os.ModePerm)
 	if err != nil {
 		return err
 	}
@@ -37,13 +57,13 @@ func (adb *AddressDatabase) ReadCSV(path string) error {
 	if err != nil {
 		return err
 	}
-	logs.Info("Found %d addresses in %s file.", len(adb.addresses), path)
+	logs.Info("Found %d addresses in %s file.", len(adb.addresses), adb.filePath)
 	return nil
 }
 
 func (adb *AddressDatabase) Len() int {
 	adb.mu.RLock()
-	adb.mu.RUnlock()
+	defer adb.mu.RUnlock()
 	return len(adb.addresses)
 }
 

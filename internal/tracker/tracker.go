@@ -38,6 +38,7 @@ type Tracker struct {
 	SwapViewer       *uniswap.SwapViewer
 	Notifier         notifier.Notifier
 	DB               *storm.DB
+	AddressMutexMap  *MutexMap // saves from repeating
 }
 
 func New(
@@ -52,6 +53,7 @@ func New(
 	tracker.Explorer = exp
 	tracker.SwapViewer = swapViewer
 	tracker.Notifier = notif
+	tracker.AddressMutexMap = NewMutexMap()
 	return tracker
 }
 
@@ -75,13 +77,21 @@ func (t *Tracker) LoadLastTransactions() error {
 func (t *Tracker) RunTracker() {
 	sem := make(chan struct{}, 10)
 	for {
-		adress, err := t.AddressDatabase.Next()
+		address, err := t.AddressDatabase.Next()
 		if err != nil {
 			logs.Error(err)
 		}
 		sem <- struct{}{}
 		go func(addr addrdb.Address) {
-			defer func() { <-sem }()
+			var err error
+			t.AddressMutexMap.Lock(addr.Address)
+			defer func() {
+				err = t.AddressMutexMap.Unlock(addr.Address)
+				if err != nil {
+					logs.Error(err)
+				}
+				<-sem
+			}()
 			last, existsLast := t.LastTransactions[addr.Address]
 			if !existsLast {
 				last.From = addr.Address
@@ -111,6 +121,9 @@ func (t *Tracker) RunTracker() {
 			if existsLast && len(uniswapTrans) > 0 {
 				sort.Sort(sort.Reverse(explorer.SortableTransactions(uniswapTrans)))
 				for _, tx := range uniswapTrans {
+					if tx.Timestamp > 3600 {
+						break
+					} // if transaction happened more than one hour ago, then skip it, it is too old
 					swap, err := t.SwapViewer.ViewSwap(tx.Hash)
 					if err != nil {
 						logs.Error(err)
@@ -146,7 +159,7 @@ func (t *Tracker) RunTracker() {
 					}(swapTransaction)
 				}
 			}
-		}(adress)
+		}(address)
 		time.Sleep(time.Millisecond) // helps not to overload cpu
 	}
 }

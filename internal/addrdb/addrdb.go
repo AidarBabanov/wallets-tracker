@@ -10,4 +10,5 @@ type AddressDatabase interface {
 	Index() int
 	Len() int
 	All() []Address
+	Add(address Address) error
 }

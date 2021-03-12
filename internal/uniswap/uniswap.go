@@ -49,7 +49,7 @@ func (v *SwapViewer) ViewSwap(txHash string) (Swap, error) {
 	}
 
 	if len(response.Data.Transaction.Swaps) == 0 {
-		return Swap{}, fmt.Errorf("no swaps in the transaction")
+		return Swap{}, fmt.Errorf("no swaps in the transaction; transaction: %s", txHash)
 	}
 	from := response.Data.Transaction.Swaps[0]
 	to := response.Data.Transaction.Swaps[len(response.Data.Transaction.Swaps)-1]
