@@ -19,7 +19,6 @@ func NewMutexMap() *MutexMap {
 
 func (mm *MutexMap) Lock(address string) {
 	mm.mu.RLock()
-	defer mm.mu.RUnlock()
 	mutex, exist := mm.m[address]
 	if !exist {
 		mm.mu.RUnlock()
@@ -31,7 +30,8 @@ func (mm *MutexMap) Lock(address string) {
 			mm.m[address] = mutex
 		}
 		mm.mu.Unlock()
-		mm.mu.RLock()
+	} else {
+		mm.mu.RUnlock()
 	}
 	mutex.Lock()
 }
